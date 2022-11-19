@@ -8,8 +8,7 @@ use libp2p::{
     core::ConnectedPoint,
     futures::StreamExt,
     gossipsub::{GossipsubEvent, GossipsubMessage, IdentTopic, MessageId},
-    identify,
-    mdns::MdnsEvent,
+    identify, mdns,
     request_response::RequestId,
     request_response::{RequestResponseEvent, RequestResponseMessage},
     swarm::SwarmEvent,
@@ -269,7 +268,7 @@ impl EventLoop {
                     .send(Event::ConnectionEstablished { endpoint })
                     .await;
             }
-            SwarmEvent::Behaviour(BehaviourEvent::Mdns(MdnsEvent::Discovered(list))) => {
+            SwarmEvent::Behaviour(BehaviourEvent::Mdns(mdns::Event::Discovered(list))) => {
                 for (peer, addr) in list {
                     self.swarm
                         .behaviour_mut()

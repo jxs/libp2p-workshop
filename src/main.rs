@@ -13,11 +13,10 @@ use futures::{
 use libp2p::{
     core, dns,
     gossipsub::{self},
-    identify, identity,
-    mdns::{Mdns, MdnsConfig},
-    noise, relay,
+    identify, identity, mdns, noise, relay,
     request_response::{self},
-    tcp, yamux, NetworkBehaviour, PeerId, Swarm, Transport,
+    swarm::NetworkBehaviour,
+    tcp, yamux, PeerId, Swarm, Transport,
 };
 use std::{error::Error, iter, os::unix::prelude::FileExt, time::Duration};
 
@@ -231,7 +230,7 @@ async fn create_network() -> Result<Swarm<Behaviour>, Box<dyn Error>> {
     // ----------------------------------------
 
     // Use TCP as transport protocol.
-    let tcp_transport = tcp::TcpTransport::new(tcp::GenTcpConfig::new().nodelay(true));
+    let tcp_transport = tcp::async_io::Transport::new(tcp::Config::new().nodelay(true));
 
     // Enable DNS name resolution.
     let dns_tcp_transport = dns::DnsConfig::system(tcp_transport).await?;
@@ -249,9 +248,9 @@ async fn create_network() -> Result<Swarm<Behaviour>, Box<dyn Error>> {
         .timeout(std::time::Duration::from_secs(20))
         .boxed();
 
-    let mdns_protocol = Mdns::new(MdnsConfig::default())?;
+    let mdns_protocol = mdns::async_io::Behaviour::new(mdns::Config::default())?;
 
-    Ok(Swarm::new(
+    Ok(Swarm::with_async_std_executor(
         transport,
         Behaviour {
             identify: identify_protocol,
@@ -364,7 +363,7 @@ pub struct Behaviour {
     gossipsub: gossipsub::Gossipsub,
     relay: relay::v2::client::Client,
     request_response: request_response::RequestResponse<codec::Codec>,
-    mdns: Mdns,
+    mdns: mdns::async_io::Behaviour,
 }
 
 #[derive(Debug, Parser)]
