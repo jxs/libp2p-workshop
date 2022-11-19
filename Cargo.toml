@@ -7,7 +7,6 @@ edition = "2021"
 
 [dependencies]
 asynchronous-codec = { version = "0.6" }
-async-std = { version = "1.12", features = ["attributes"] }
 async-trait = "0.1.57"
 bytes = { version = "1" }
 clap = { version = "4.0", features = ["derive"] }
@@ -19,6 +18,8 @@ libp2p = { git = "https://github.com/libp2p/rust-libp2p.git", features = ["full"
 log = "0.4"
 prost = "0.11"
 unsigned-varint = { version = "0.7", features = ["asynchronous_codec"] }
+tokio = { version = "1.22.0", features = ["full"] }
+tokio-stream = { version = "0.1.11", features = ["io-util"] }
 
 [build-dependencies]
 prost-build = "0.11"

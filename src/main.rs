@@ -1,13 +1,11 @@
 mod codec;
 mod event_loop;
 
-use async_std::io;
 use clap::Parser;
 use env_logger::Env;
 use futures::{
     channel::{mpsc, oneshot},
     prelude::*,
-    select,
     stream::StreamExt,
 };
 use libp2p::{
@@ -19,6 +17,9 @@ use libp2p::{
     tcp, yamux, PeerId, Swarm, Transport,
 };
 use std::{error::Error, iter, os::unix::prelude::FileExt, time::Duration};
+use tokio::io;
+use tokio::io::AsyncBufReadExt;
+use tokio_stream::wrappers::LinesStream;
 
 use event_loop::{Command, Event, EventLoop};
 
@@ -27,7 +28,7 @@ mod message_proto {
     include!(concat!(env!("OUT_DIR"), "/workshop.pb.rs"));
 }
 
-#[async_std::main]
+#[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
     let _opts = Opts::parse();
@@ -71,12 +72,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
         Network::new(swarm, files_topic, chat_topic, addrs_topic);
 
     // Read full lines from stdin
-    let mut stdin = io::BufReader::new(io::stdin()).lines().fuse();
+    let mut stdin = LinesStream::new(io::BufReader::new(io::stdin()).lines());
 
     loop {
-        select! {
+        tokio::select! {
             // Parse lines from Stdin
-            line = stdin.select_next_some() => {
+            Some(line) = stdin.next() => {
 
                 let line = line.expect("Stdin not to close");
 
@@ -230,7 +231,7 @@ async fn create_network() -> Result<Swarm<Behaviour>, Box<dyn Error>> {
     // ----------------------------------------
 
     // Use TCP as transport protocol.
-    let tcp_transport = tcp::async_io::Transport::new(tcp::Config::new().nodelay(true));
+    let tcp_transport = tcp::tokio::Transport::new(tcp::Config::new().nodelay(true));
 
     // Enable DNS name resolution.
     let dns_tcp_transport = dns::DnsConfig::system(tcp_transport).await?;
@@ -248,9 +249,9 @@ async fn create_network() -> Result<Swarm<Behaviour>, Box<dyn Error>> {
         .timeout(std::time::Duration::from_secs(20))
         .boxed();
 
-    let mdns_protocol = mdns::async_io::Behaviour::new(mdns::Config::default())?;
+    let mdns_protocol = mdns::tokio::Behaviour::new(mdns::Config::default())?;
 
-    Ok(Swarm::with_async_std_executor(
+    Ok(Swarm::with_tokio_executor(
         transport,
         Behaviour {
             identify: identify_protocol,
@@ -299,7 +300,7 @@ impl Network {
     ) -> (Self, mpsc::UnboundedReceiver<Event>) {
         let (event_tx, event_rx) = mpsc::unbounded();
         let (command_tx, command_rx) = mpsc::unbounded();
-        async_std::task::spawn(
+        tokio::task::spawn(
             EventLoop::new(
                 network,
                 command_rx,
@@ -363,7 +364,7 @@ pub struct Behaviour {
     gossipsub: gossipsub::Gossipsub,
     relay: relay::v2::client::Client,
     request_response: request_response::RequestResponse<codec::Codec>,
-    mdns: mdns::async_io::Behaviour,
+    mdns: mdns::tokio::Behaviour,
 }
 
 #[derive(Debug, Parser)]
